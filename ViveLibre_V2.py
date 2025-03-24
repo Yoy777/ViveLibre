@@ -97,94 +97,104 @@ def cargar_fichero():
         txt_log.delete(1.0, tk.END)
         txt_log.insert(tk.END, log)
         
-        # ─────────────────────────────────────────────────────────────────────────
-        # Opcional: Ofrecer opciones de visualización mediante una ventana de selección
-        # ─────────────────────────────────────────────────────────────────────────
-        if messagebox.askyesno("Explorar datos", "¿Deseas explorar algunas variables con gráficas?"):
-            # Obtener lista de columnas
-            all_cols = df_sin_duplicados.columns.tolist()
-            
-            # Crear ventana de selección de gráfica
-            ventana_seleccion = tk.Toplevel()
-            ventana_seleccion.title("Seleccionar tipo de gráfica")
-            
-            # Variable para almacenar el tipo de gráfica seleccionada
-            tipo_grafica = tk.StringVar(value="hist")
-            tk.Label(ventana_seleccion, text="Seleccione el tipo de gráfica:").pack(anchor="w", padx=10, pady=5)
-            opciones = [("Histograma", "hist"), ("Gráfico de tarta", "pie"), ("Serie de tiempo", "line"), ("Box plot", "box")]
-            for texto, valor in opciones:
-                tk.Radiobutton(ventana_seleccion, text=texto, variable=tipo_grafica, value=valor).pack(anchor="w", padx=10)
-            
-            # Variable para la columna a graficar
-            col_seleccion = tk.StringVar(value=all_cols[0] if all_cols else "")
-            tk.Label(ventana_seleccion, text="Seleccione la columna:").pack(anchor="w", padx=10, pady=5)
-            if all_cols:
-                opcion_menu = tk.OptionMenu(ventana_seleccion, col_seleccion, *all_cols)
-                opcion_menu.pack(anchor="w", padx=10, pady=5)
-            else:
-                tk.Label(ventana_seleccion, text="No hay columnas disponibles.").pack(anchor="w", padx=10, pady=5)
-            
-            def generar_grafica():
-                ventana_seleccion.destroy()
-                tipo = tipo_grafica.get()
-                columna = col_seleccion.get()
-                # Verificar que se seleccionó una columna
-                if columna not in all_cols:
-                    messagebox.showinfo("Información", "Columna no válida.")
-                    return
-                if tipo == "hist":
-                    if pd.api.types.is_numeric_dtype(df_sin_duplicados[columna]):
-                        plt.figure()
-                        plt.hist(df_sin_duplicados[columna].dropna(), bins=30, color="skyblue", edgecolor="black")
-                        plt.title(f"Histograma de {columna}")
-                        plt.xlabel(columna)
-                        plt.ylabel("Frecuencia")
-                        plt.show()
-                    else:
-                        messagebox.showinfo("Información", "La columna seleccionada no es numérica para un histograma.")
-                elif tipo == "pie":
-                    counts = df_sin_duplicados[columna].value_counts(dropna=False)
-                    if counts.empty:
-                        messagebox.showinfo("Información", "No hay datos para graficar en tarta.")
-                    else:
-                        plt.figure()
-                        counts.plot.pie(autopct='%1.1f%%')
-                        plt.title(f"Distribución de {columna}")
-                        plt.ylabel("")
-                        plt.show()
-                elif tipo == "line":
-                    if "tiempo" in df_sin_duplicados.columns:
-                        df_sin_duplicados["tiempo_dt"] = pd.to_datetime(df_sin_duplicados["tiempo"], format="%d/%m/%Y %H:%M:%S", errors='coerce')
-                        df_time = df_sin_duplicados.dropna(subset=["tiempo_dt", columna]).copy()
-                        df_time = df_time.sort_values("tiempo_dt")
-                        if pd.api.types.is_numeric_dtype(df_time[columna]):
-                            plt.figure()
-                            plt.plot(df_time["tiempo_dt"], df_time[columna], marker='o', linestyle='-')
-                            plt.title(f"Serie de tiempo de {columna}")
-                            plt.xlabel("Tiempo")
-                            plt.ylabel(columna)
-                            plt.xticks(rotation=45)
-                            plt.tight_layout()
-                            plt.show()
-                        else:
-                            messagebox.showinfo("Información", "La columna seleccionada no es numérica para una serie de tiempo.")
-                    else:
-                        messagebox.showinfo("Información", "No se encontró la columna 'tiempo' para serie de tiempo.")
-                elif tipo == "box":
-                    if pd.api.types.is_numeric_dtype(df_sin_duplicados[columna]):
-                        plt.figure()
-                        df_sin_duplicados.boxplot(column=columna)
-                        plt.title(f"Box plot de {columna}")
-                        plt.ylabel(columna)
-                        plt.show()
-                    else:
-                        messagebox.showinfo("Información", "La columna seleccionada no es numérica para un box plot.")
+    # ─────────────────────────────────────────────────────────────────────────
+    # Opcional: Ofrecer opciones de visualización mediante una ventana de selección
+    # ─────────────────────────────────────────────────────────────────────────
+    if messagebox.askyesno("Explorar datos", "¿Deseas explorar algunas variables con gráficas?"):
+        # Obtener lista de columnas
+        all_cols = df_sin_duplicados.columns.tolist()
+        
+        # Crear ventana de selección de gráfica
+        ventana_seleccion = tk.Toplevel()
+        ventana_seleccion.title("Seleccionar tipo de gráfica")
+        
+        # Variable para almacenar el tipo de gráfica seleccionada
+        tipo_grafica = tk.StringVar(value="hist")
+        tk.Label(ventana_seleccion, text="Seleccione el tipo de gráfica:").pack(anchor="w", padx=10, pady=5)
+        opciones = [("Histograma", "hist"), ("Gráfico de tarta", "pie"), ("Serie de tiempo", "line"), ("Box plot", "box")]
+        for texto, valor in opciones:
+            tk.Radiobutton(ventana_seleccion, text=texto, variable=tipo_grafica, value=valor).pack(anchor="w", padx=10)
+        
+        # Variable para la columna a graficar
+        col_seleccion = tk.StringVar(value=all_cols[0] if all_cols else "")
+        tk.Label(ventana_seleccion, text="Seleccione la columna:").pack(anchor="w", padx=10, pady=5)
+        if all_cols:
+            opcion_menu = tk.OptionMenu(ventana_seleccion, col_seleccion, *all_cols)
+            opcion_menu.pack(anchor="w", padx=10, pady=5)
+        else:
+            tk.Label(ventana_seleccion, text="No hay columnas disponibles.").pack(anchor="w", padx=10, pady=5)
+        
+        def generar_grafica():
+            tipo = tipo_grafica.get()
+            columna = col_seleccion.get()
+            # Verificar que se seleccionó una columna válida
+            if columna not in all_cols:
+                messagebox.showinfo("Información", "Columna no válida.")
+                return
+            if tipo == "hist":
+                if pd.api.types.is_numeric_dtype(df_sin_duplicados[columna]):
+                    counts, bins = np.histogram(df_sin_duplicados[columna].dropna(), bins=30)
+                    bin_labels = [f"{bins[i]:.2f}-{bins[i+1]:.2f}" for i in range(len(bins)-1)]
+                    plt.figure(figsize=(10, 5))
+                    plt.bar(bin_labels, counts, color="skyblue", edgecolor="black")
+                    plt.title(f"Gráfico de barras de {columna}")
+                    plt.xlabel(columna)
+                    plt.ylabel("Frecuencia")
+                    plt.xticks(rotation=90)
+                    plt.tight_layout()
+                    plt.show()
                 else:
-                    messagebox.showinfo("Información", "Tipo de gráfica no reconocido (usa hist, pie, line, box).")
-            
-            tk.Button(ventana_seleccion, text="Generar Gráfica", command=generar_grafica).pack(pady=10)
-            ventana_seleccion.grab_set()
-            ventana_seleccion.wait_window()
+                    messagebox.showinfo("Información", "La columna seleccionada no es numérica para un gráfico de barras.")
+            elif tipo == "pie":
+                counts = df_sin_duplicados[columna].value_counts(dropna=False)
+                if counts.empty:
+                    messagebox.showinfo("Información", "No hay datos para graficar en tarta.")
+                else:
+                    plt.figure()
+                    counts.plot.pie(autopct='%1.1f%%')
+                    plt.title(f"Distribución de {columna}")
+                    plt.ylabel("")
+                    plt.show()
+            elif tipo == "line":
+                if "tiempo" in df_sin_duplicados.columns:
+                    df_sin_duplicados["tiempo_dt"] = pd.to_datetime(df_sin_duplicados["tiempo"], format="%d/%m/%Y %H:%M:%S", errors='coerce')
+                    df_time = df_sin_duplicados.dropna(subset=["tiempo_dt", columna]).copy()
+                    df_time = df_time.sort_values("tiempo_dt")
+                    if pd.api.types.is_numeric_dtype(df_time[columna]):
+                        plt.figure()
+                        plt.plot(df_time["tiempo_dt"], df_time[columna], marker='o', linestyle='-')
+                        plt.title(f"Serie de tiempo de {columna}")
+                        plt.xlabel("Tiempo")
+                        plt.ylabel(columna)
+                        plt.xticks(rotation=45)
+                        plt.tight_layout()
+                        plt.show()
+                    else:
+                        messagebox.showinfo("Información", "La columna seleccionada no es numérica para una serie de tiempo.")
+                else:
+                    messagebox.showinfo("Información", "No se encontró la columna 'tiempo' para serie de tiempo.")
+            elif tipo == "box":
+                if pd.api.types.is_numeric_dtype(df_sin_duplicados[columna]):
+                    plt.figure()
+                    df_sin_duplicados.boxplot(column=columna)
+                    plt.title(f"Box plot de {columna}")
+                    plt.ylabel(columna)
+                    plt.show()
+                else:
+                    messagebox.showinfo("Información", "La columna seleccionada no es numérica para un box plot.")
+            else:
+                messagebox.showinfo("Información", "Tipo de gráfica no reconocido (usa hist, pie, line, box).")
+        
+        # Botón para generar gráfica (no cierra la ventana)
+        btn_generar = tk.Button(ventana_seleccion, text="Generar Gráfica", command=generar_grafica)
+        btn_generar.pack(pady=5)
+        
+        # Botón para volver (cerrar la ventana)
+        btn_volver = tk.Button(ventana_seleccion, text="Volver", command=ventana_seleccion.destroy)
+        btn_volver.pack(pady=5)
+        
+        ventana_seleccion.grab_set()
+        ventana_seleccion.wait_window()
             
 def auto_load_files():
     """
