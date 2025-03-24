@@ -233,36 +233,78 @@ def popup_merge_options():
 
 def merge_sin_imputacion():
     """
-    Fusiona los ficheros cargados utilizando la PK 'tiempo' del fichero 'interruptions'
-    (proceso actual, sin imputación) y almacena el resultado en la variable global merged_data.
+    Fusiona los ficheros cargados utilizando la PK 'tiempo' (proceso actual, sin imputación)
+    y almacena el resultado en la variable global merged_data.
     Al finalizar, se abre un diálogo para guardar el DataFrame resultante en Excel.
     """
     global loaded_files, merged_data, merged_stats
+    
+    # 1. Se abre SIEMPRE la ventana para cargar (o volver a cargar) los ficheros requeridos
+    rutas_ficheros = filedialog.askopenfilenames(
+        title="Selecciona los CSV requeridos (ej. interruptions, location, heart_rate, onskin)",
+        filetypes=[("Archivos CSV", "*.csv")]
+    )
+    
+    if not rutas_ficheros:
+        messagebox.showwarning("Advertencia", "No se seleccionaron ficheros. Operación cancelada.")
+        return
+    
+    # 2. Cargar/Procesar cada fichero y guardarlo en loaded_files
+    for ruta_fichero in rutas_ficheros:
+        try:
+            df_temp = pd.read_csv(ruta_fichero, dtype=str)
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo leer el fichero {ruta_fichero}:\n{e}")
+            continue
+        
+        # Conversión de la primera columna a 'tiempo'
+        if not df_temp.empty:
+            col_tiempo = df_temp.columns[0]
+            df_temp[col_tiempo] = pd.to_datetime(df_temp[col_tiempo], errors='coerce')
+            df_temp[col_tiempo] = df_temp[col_tiempo].dt.strftime("%d/%m/%Y %H:%M:%S")
+            df_temp.rename(columns={col_tiempo: "tiempo"}, inplace=True)
+        
+            # Convertir las demás columnas a numérico
+            for col in df_temp.columns[1:]:
+                df_temp[col] = pd.to_numeric(df_temp[col], errors='coerce')
+        
+            # Eliminar duplicados
+            df_temp_sin_dup = df_temp.drop_duplicates()
+            loaded_files[ruta_fichero] = df_temp_sin_dup
+        else:
+            messagebox.showinfo("Información", f"El fichero {ruta_fichero} está vacío.")
+    
+    # 3. Verificar si se logró cargar algo en loaded_files
     if not loaded_files:
-        if not auto_load_files():
-            messagebox.showerror("Error", "No se pudieron cargar los ficheros automáticamente.")
-            return
+        messagebox.showerror("Error", "No se pudo cargar ningún fichero válido.")
+        return
+    
+    # 4. Seleccionar un 'main_df' para el merge (opcional: buscar 'interruptions', o usar el primero)
     main_key = None
     for key in loaded_files:
         if "interruptions" in key.lower():
             main_key = key
             break
     if not main_key:
-        messagebox.showerror("Error", "No se encontró el fichero 'interruptions' entre los cargados.")
-        return
-    main_df = loaded_files[main_key]
-    tamaño_interruptions = main_df.shape[0]
-    log = f"Tamaño de la base 'interruptions' (sin duplicados): {tamaño_interruptions} registros\n\n"
+        # Si no se encontró 'interruptions', se toma el primero, o se notifica
+        main_key = list(loaded_files.keys())[0]
+        messagebox.showinfo("Información", 
+            f"No se encontró 'interruptions'. Se usará '{os.path.basename(main_key)}' como base principal.")
+    
+    main_df = loaded_files[main_key].copy()
+    log = f"Base principal para el merge: {os.path.basename(main_key)} con {main_df.shape[0]} registros.\n\n"
     
     merged_df = main_df.copy()
-    # Para cada fichero secundario, se garantiza una única fila por 'tiempo'
+    
+    # 5. Merge con los demás ficheros
     for key, df in loaded_files.items():
         if key == main_key:
             continue
         df_sec = df.drop_duplicates(subset=["tiempo"])
         merged_df = merged_df.merge(df_sec, on="tiempo", how="left")
+        log += f"Merged con: {os.path.basename(key)} ({df_sec.shape[0]} registros)\n"
     
-    log += "Primeros 5 registros del DataFrame fusionado:\n"
+    log += "\nPrimeros 5 registros del DataFrame fusionado:\n"
     log += merged_df.head().to_string(index=False) + "\n\n"
     
     duplicados_merged = merged_df[merged_df.duplicated(keep=False)]
@@ -281,6 +323,7 @@ def merge_sin_imputacion():
     log += f"\nDuplicados removidos en el merge: {filas_iniciales - filas_finales}\n"
     log += f"Registros después del merge: {filas_finales}\n\n"
     
+    # 6. Estadísticas descriptivas
     stats = {}
     numeric_cols = merged_df_sin_dup.columns.drop("tiempo", errors='ignore')
     for col in numeric_cols:
@@ -296,16 +339,14 @@ def merge_sin_imputacion():
     merged_stats_df = pd.DataFrame(stats).T
     log += "Estadísticas descriptivas del merge:\n" + merged_stats_df.to_string() + "\n\n"
     
+    # 7. Actualizar variables globales
     merged_data = merged_df_sin_dup.copy()
     merged_stats = merged_stats_df.copy()
-    
     log += "El DataFrame fusionado se ha guardado en 'merged_data' y sus estadísticas en 'merged_stats'.\n"
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Diálogo para exportar la base fusionada
-    # ─────────────────────────────────────────────────────────────────────────
+    # 8. Diálogo para exportar la base fusionada
     if messagebox.askyesno("Exportar Base", "¿Desea exportar el DataFrame sin imputación?"):
-        ruta_excel = asksaveasfilename(
+        ruta_excel = filedialog.asksaveasfilename(
             title="Guardar DataFrame sin imputación",
             defaultextension=".xlsx",
             filetypes=[("Excel files", "*.xlsx")]
@@ -318,11 +359,9 @@ def merge_sin_imputacion():
     else:
         log += "\nEl usuario decidió no exportar el DataFrame sin imputación.\n"
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Diálogo para exportar las estadísticas descriptivas
-    # ─────────────────────────────────────────────────────────────────────────
+    # 9. Diálogo para exportar las estadísticas descriptivas
     if messagebox.askyesno("Exportar Estadísticas", "¿Desea exportar las estadísticas descriptivas del merge?"):
-        ruta_excel_stats = asksaveasfilename(
+        ruta_excel_stats = filedialog.asksaveasfilename(
             title="Guardar estadísticas descriptivas",
             defaultextension=".xlsx",
             filetypes=[("Excel files", "*.xlsx")]
@@ -355,10 +394,11 @@ def merge_con_imputacion():
     """
     global loaded_files, merged_data, merged_stats, ml_model
 
-    if not loaded_files:
-        if not auto_load_files():
-            messagebox.showerror("Error", "No se pudieron cargar los ficheros automáticamente.")
-            return
+    # Forzar la selección de ficheros cada vez
+    
+    if not auto_load_files():
+        messagebox.showerror("Error", "No se pudieron cargar los ficheros automáticamente.")
+        return
 
     # 1. Identificar la tabla original de heart_rate
     hr_key = None
@@ -1459,13 +1499,13 @@ def clasificacion_por_dbscan():
 ventana = tk.Tk()
 ventana.title("Cargar, Fusionar y Detectar Eventos")
 
-btn_cargar = tk.Button(ventana, text="Cargar ficheros", command=cargar_fichero)
+btn_cargar = tk.Button(ventana, text="Análisis Fichero", command=cargar_fichero)
 btn_cargar.pack(pady=10)
 
-btn_merge = tk.Button(ventana, text="merge_datos", command=merge_datos)
+btn_merge = tk.Button(ventana, text="Merge de Datos", command=merge_datos)
 btn_merge.pack(pady=10)
 
-btn_eventos = tk.Button(ventana, text="deteccion de enventos", command=deteccion_de_eventos)
+btn_eventos = tk.Button(ventana, text="Detección de Eventos", command=deteccion_de_eventos)
 btn_eventos.pack(pady=10)
 
 txt_log = scrolledtext.ScrolledText(ventana, width=100, height=30)
